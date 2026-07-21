@@ -8,8 +8,12 @@ import (
 )
 
 func main() {
-	p := tea.NewProgram(ui.InitialModel())
-	if err := p.Start(); err != nil {
+	p := tea.NewProgram(
+		ui.InitialModel(),
+		tea.WithMouseCellMotion(), // habilita soporte de ratón
+	)
+
+	if _, err := p.Run(); err != nil {
 		log.Fatal(err)
 	}
 }
