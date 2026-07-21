@@ -3,10 +3,8 @@ package scan
 import (
 	"fmt"
 	"net"
-<<<<<<< HEAD
-=======
+
 	"strings"
->>>>>>> feature/bubbletea-ui
 	"sync"
 	"time"
 )
@@ -23,37 +21,6 @@ type PortScanResult struct {
 
 // funcion para leer un solo puerto
 func ScanPort(host string, port int, timeout time.Duration) PortScanResult {
-<<<<<<< HEAD
-	start := time.Now()                                      //inicio del escaneo
-	addrs := net.JoinHostPort(host, fmt.Sprintf("%d", port)) //con el net.JoinHostPort permitimos procesar tanto IPv4 como IPv6
-	//intentamos establecer conexion con timeout
-	/*version no optima
-	conn, err := (&net.Dialer{Timeout: timeout}).Dial("tcp", addrs)
-	if err == nil {
-		conn.Close()
-		return PortScanResult{Port: port, Status: "open", Protocol: "tcp", ResponseTime: time.Since(start), Timestamp: time.Now()}
-	} else {
-		return PortScanResult{Port: port, Status: "closed", Error: err.Error(), Protocol: "tcp", ResponseTime: time.Since(start), Timestamp: time.Now()}
-	}
-	*/
-	/*version optimizada, se define una sola vez #ResponseTime y #Timestamp para evitar redundancia y posibles errores
-	en un mismo escaneo, ademas tenemos un solo #return evitando la casi redundancia del caso anterior*/
-	reply := PortScanResult{
-		Port:         port,
-		Protocol:     "tcp",
-		ResponseTime: time.Since(start),
-		Timestamp:    time.Now(),
-	}
-	if conn, err := (&net.Dialer{Timeout: timeout}).Dial("tcp", addrs); err == nil {
-		conn.Close()
-		reply.Status = "open"
-	} else {
-		reply.Status = "closed"
-		reply.Error = err.Error()
-	}
-	return reply
-
-=======
 	start := time.Now()
 	addrs := net.JoinHostPort(host, fmt.Sprintf("%d", port))
 
@@ -98,7 +65,6 @@ func ScanPort(host string, port int, timeout time.Duration) PortScanResult {
 	}
 
 	return reply
->>>>>>> feature/bubbletea-ui
 }
 
 // funcion para escanear todos los puertos
