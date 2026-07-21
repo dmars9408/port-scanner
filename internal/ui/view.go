@@ -183,10 +183,48 @@ func resultsSummaryContent(m Model) string {
 		explanation := riskExplanation(r.Port, status, r.ResponseTime)
 
 		var statusColored string
-		if status == "OPEN" {
-			statusColored = lipgloss.NewStyle().Foreground(lipgloss.Color("#00FF00")).Render(status)
-		} else {
-			statusColored = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF0000")).Render(status)
+
+		switch status {
+		case "OPEN":
+			statusColored = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#00FF00")). // verde
+				Bold(true).
+				Render(status)
+
+		case "CLOSED":
+			statusColored = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#FF0000")). // rojo
+				Bold(true).
+				Render(status)
+
+		case "TIMEOUT":
+			statusColored = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#FFFF00")). // amarillo
+				Bold(true).
+				Render(status)
+
+		case "DNS_ERROR":
+			statusColored = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#00AFFF")). // azul
+				Bold(true).
+				Render(status)
+
+		case "REFUSED":
+			statusColored = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#FF8800")). // naranja
+				Bold(true).
+				Render(status)
+
+		case "UNREACHABLE":
+			statusColored = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#AAAAAA")). // gris
+				Bold(true).
+				Render(status)
+
+		default:
+			statusColored = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#FFFFFF")). // blanco
+				Render(status)
 		}
 
 		riskColored := lipgloss.NewStyle().
