@@ -2,6 +2,7 @@ package ui
 
 import (
 	"portscanner/internal/scan"
+	"time"
 
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -34,5 +35,6 @@ type Model struct {
 
 	LogMessages string
 
-	Viewport viewport.Model
+	Viewport  viewport.Model
+	StartTime time.Time
 }

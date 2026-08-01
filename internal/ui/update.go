@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -12,10 +13,6 @@ import (
 
 	"portscanner/internal/scan" // <-- ajusta el import si tu módulo tiene otro nombre
 )
-
-type ScanProgressMessage struct {
-	Port int
-}
 
 func InitialModel() Model {
 	host := textinput.New()
@@ -149,7 +146,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, cmd
 
-	case ScanProgressMessage:
+	case scan.ScanProgressMessage:
 		m.CurrentPort = msg.Port
 		return m, nil
 
@@ -178,9 +175,10 @@ func validateForm(m Model) (tea.Model, tea.Cmd) {
 	}
 
 	m.ValidationError = ""
-	m.Screen = ScreenScanning
 	m.Host = host
 	m.Ports = ports
+	m.StartTime = time.Now()
+	m.Screen = ScreenScanning
 
 	return m, scan.ScanPortsAsync(host, ports)
 }

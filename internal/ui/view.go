@@ -78,7 +78,7 @@ func resultsView(m Model) string {
 		}
 	}
 
-	fmt.Fprintf(&b, "\nTOTAL: %d, OPEN: %d, CLOSED:	%d\n", len(m.Results), openCount, closedCount)
+	fmt.Fprintf(&b, "\nTOTAL: %d, OPEN: %d, CLOSED: %d\n", len(m.Results), openCount, closedCount)
 
 	//total scan time
 	if len(m.Results) > 0 {
@@ -97,46 +97,26 @@ func resultsSummaryView(m Model) string {
 
 // --- Estilos base tabla ---
 func resultsSummaryContent(m Model) string {
-	titleStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#00AFFF")).
-		PaddingBottom(1)
-
-	boxStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#555555")).
-		Padding(1, 2)
-
-	labelStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#AAAAAA"))
-
-	valueStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFFFF"))
-
-	logStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#00FF00")).
-		Bold(true)
 
 	// --- Panel izquierdo: Scan Summary ---
 	var left strings.Builder
 
-	left.WriteString(titleStyle.Render("Scan Summary"))
+	left.WriteString(TitleStyle.Render("Scan Summary"))
 	left.WriteString("\n")
 
-	fmt.Fprintf(&left, "%s %s\n", labelStyle.Render("Host:"), valueStyle.Render(m.Host))
-	fmt.Fprintf(&left, "%s %d\n", labelStyle.Render("Total ports:"), len(m.Results))
-	fmt.Fprintf(&left, "%s %d\n", labelStyle.Render("Open:"), countOpen(m.Results))
-	fmt.Fprintf(&left, "%s %d\n", labelStyle.Render("Closed:"), countClosed(m.Results))
-	fmt.Fprintf(&left, "%s %s\n", labelStyle.Render("Real time:"), totalRealTime(m.Results))
-	fmt.Fprintf(&left, "%s %s\n", labelStyle.Render("Sum time:"), totalAccumulatedTime(m.Results))
+	fmt.Fprintf(&left, "%s %s\n", LabelStyle.Render("Host:"), ValueStyle.Render(m.Host))
+	fmt.Fprintf(&left, "%s %d\n", LabelStyle.Render("Total ports:"), len(m.Results))
+	fmt.Fprintf(&left, "%s %d\n", LabelStyle.Render("Open:"), countOpen(m.Results))
+	fmt.Fprintf(&left, "%s %d\n", LabelStyle.Render("Closed:"), countClosed(m.Results))
+	fmt.Fprintf(&left, "%s %s\n", LabelStyle.Render("Real time:"), totalRealTime(m))
+	fmt.Fprintf(&left, "%s %s\n", LabelStyle.Render("Sum time:"), totalAccumulatedTime(m.Results))
 
-	leftBox := boxStyle.Render(left.String())
+	leftBox := BoxStyle.Render(left.String())
 
 	// --- Panel derecho: Actions ---
 	var right strings.Builder
 
-	right.WriteString(titleStyle.Render("Actions"))
+	right.WriteString(TitleStyle.Render("Actions"))
 	right.WriteString("\n")
 	right.WriteString("  R - Run another scan\n")
 	right.WriteString("  S - Save log\n")
@@ -144,30 +124,25 @@ func resultsSummaryContent(m Model) string {
 
 	if m.LogMessages != "" {
 		right.WriteString("\n")
-		right.WriteString(logStyle.Render(m.LogMessages))
+		right.WriteString(LogStyle.Render(m.LogMessages))
 		right.WriteString("\n")
 	}
 
-	rightBox := boxStyle.Render(right.String())
+	rightBox := BoxStyle.Render(right.String())
 
 	// --- Parte superior: Summary (izq) + Actions (der) ---
-	gap := lipgloss.NewStyle().Width(25).Render("") // 10 espacios de separación
+	gap := lipgloss.NewStyle().Width(25).Render("")
 	topRow := lipgloss.JoinHorizontal(lipgloss.Top, leftBox, gap, rightBox)
 
 	// --- Tabla inferior ---
 	var table strings.Builder
 
-	table.WriteString(titleStyle.Render("SCAN RESULTS"))
+	table.WriteString(TitleStyle.Render("SCAN RESULTS"))
 	table.WriteString("\n")
-
-	// Encabezado alineado
-	headerStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#00AFFF"))
 
 	fmt.Fprintf(&table,
 		"%s\n",
-		headerStyle.Render(fmt.Sprintf(
+		HeaderStyle.Render(fmt.Sprintf(
 			"%-6s %-8s %-10s %-12s %-12s %-8s %-30s",
 			"PORT", "PROTO", "STATUS", "SERVICE", "CATEGORY", "RISK", "INFO",
 		)),
@@ -187,43 +162,43 @@ func resultsSummaryContent(m Model) string {
 		switch status {
 		case "OPEN":
 			statusColored = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#00FF00")). // verde
+				Foreground(lipgloss.Color("#00FF00")).
 				Bold(true).
 				Render(status)
 
 		case "CLOSED":
 			statusColored = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#FF0000")). // rojo
+				Foreground(lipgloss.Color("#FF0000")).
 				Bold(true).
 				Render(status)
 
 		case "TIMEOUT":
 			statusColored = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#FFFF00")). // amarillo
+				Foreground(lipgloss.Color("#FFFF00")).
 				Bold(true).
 				Render(status)
 
 		case "DNS_ERROR":
 			statusColored = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#00AFFF")). // azul
+				Foreground(lipgloss.Color("#00AFFF")).
 				Bold(true).
 				Render(status)
 
 		case "REFUSED":
 			statusColored = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#FF8800")). // naranja
+				Foreground(lipgloss.Color("#FF8800")).
 				Bold(true).
 				Render(status)
 
 		case "UNREACHABLE":
 			statusColored = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#AAAAAA")). // gris
+				Foreground(lipgloss.Color("#AAAAAA")).
 				Bold(true).
 				Render(status)
 
 		default:
 			statusColored = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#FFFFFF")). // blanco
+				Foreground(lipgloss.Color("#FFFFFF")).
 				Render(status)
 		}
 
@@ -244,8 +219,7 @@ func resultsSummaryContent(m Model) string {
 
 	}
 
-	bottomBox := boxStyle.Render(table.String())
+	bottomBox := BoxStyle.Render(table.String())
 
-	// --- Layout final: arriba Summary+Actions, abajo tabla ---
 	return lipgloss.JoinVertical(lipgloss.Top, topRow, bottomBox)
 }

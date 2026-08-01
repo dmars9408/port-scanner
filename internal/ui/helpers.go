@@ -74,24 +74,11 @@ func countClosed(results []scan.PortScanResult) int {
 	return n
 }
 
-func totalRealTime(results []scan.PortScanResult) time.Duration {
-	if len(results) == 0 {
+func totalRealTime(m Model) time.Duration {
+	if m.StartTime.IsZero() {
 		return 0
 	}
-
-	min := results[0].Timestamp
-	max := results[0].Timestamp
-
-	for _, r := range results {
-		if r.Timestamp.Before(min) {
-			min = r.Timestamp
-		}
-		if r.Timestamp.After(max) {
-			max = r.Timestamp
-		}
-	}
-
-	return max.Sub(min)
+	return time.Since(m.StartTime)
 }
 
 func totalAccumulatedTime(results []scan.PortScanResult) time.Duration {

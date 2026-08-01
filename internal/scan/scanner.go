@@ -33,8 +33,12 @@ func ScanPort(host string, port int, timeout time.Duration) PortScanResult {
 	conn, err := (&net.Dialer{Timeout: timeout}).Dial("tcp", addrs)
 	reply.ResponseTime = time.Since(start)
 
+	//Cierra la conexión siempre que exista, incluso si hay error.
+	if conn != nil {
+		defer conn.Close() //es una mejora de seguridad, evita fuga de conexiones
+	}
+
 	if err == nil {
-		conn.Close()
 		reply.Status = "open"
 		return reply
 	}
