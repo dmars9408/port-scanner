@@ -17,6 +17,8 @@ type PortScanResult struct {
 	Protocol     string
 	ResponseTime time.Duration
 	Timestamp    time.Time
+	Banner       string
+	Service      string
 }
 
 // funcion para leer un solo puerto
@@ -40,10 +42,20 @@ func ScanPort(host string, port int, timeout time.Duration) PortScanResult {
 
 	if err == nil {
 		reply.Status = "open"
+		buffer := make([]byte, 256)
+		conn.SetReadDeadline(time.Now().Add(300 * time.Millisecond))
+		n, _ := conn.Read(buffer)
+		banner := strings.TrimSpace(string(buffer[:n]))
+		reply.Banner = banner
+		if banner != "" {
+			reply.Service = DetectServiceFromBanner(banner)
+		} else {
+			reply.Service = DetectService(port)
+		}
 		return reply
 	}
 
-	// --- Clasificación profesional de errores ---
+	// --- Clasificación de errores ---
 	msg := err.Error()
 
 	switch {
@@ -67,7 +79,7 @@ func ScanPort(host string, port int, timeout time.Duration) PortScanResult {
 		reply.Status = "closed"
 		reply.Error = fmt.Sprintf("Port %d closed (%s)", port, msg)
 	}
-
+	reply.Service = DetectService(port)
 	return reply
 }
 

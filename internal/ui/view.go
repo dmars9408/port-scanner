@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"portscanner/internal/scan"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -106,10 +107,10 @@ func resultsSummaryContent(m Model) string {
 
 	fmt.Fprintf(&left, "%s %s\n", LabelStyle.Render("Host:"), ValueStyle.Render(m.Host))
 	fmt.Fprintf(&left, "%s %d\n", LabelStyle.Render("Total ports:"), len(m.Results))
-	fmt.Fprintf(&left, "%s %d\n", LabelStyle.Render("Open:"), countOpen(m.Results))
-	fmt.Fprintf(&left, "%s %d\n", LabelStyle.Render("Closed:"), countClosed(m.Results))
+	fmt.Fprintf(&left, "%s %d\n", LabelStyle.Render("Open:"), scan.CountOpen(m.Results))
+	fmt.Fprintf(&left, "%s %d\n", LabelStyle.Render("Closed:"), scan.CountClosed(m.Results))
 	fmt.Fprintf(&left, "%s %s\n", LabelStyle.Render("Real time:"), totalRealTime(m))
-	fmt.Fprintf(&left, "%s %s\n", LabelStyle.Render("Sum time:"), totalAccumulatedTime(m.Results))
+	fmt.Fprintf(&left, "%s %s\n", LabelStyle.Render("Sum time:"), scan.TotalAccumulatedTime(m.Results))
 
 	leftBox := BoxStyle.Render(left.String())
 
@@ -143,8 +144,8 @@ func resultsSummaryContent(m Model) string {
 	fmt.Fprintf(&table,
 		"%s\n",
 		HeaderStyle.Render(fmt.Sprintf(
-			"%-6s %-8s %-10s %-12s %-12s %-8s %-30s",
-			"PORT", "PROTO", "STATUS", "SERVICE", "CATEGORY", "RISK", "INFO",
+			"%-6s %-8s %-10s %-12s %-15s %-12s %-8s %-40s",
+			"PORT", "PROTO", "STATUS", "SERVICE", "PRODUCT", "CATEGORY", "RISK", "INFO",
 		)),
 	)
 
@@ -152,10 +153,11 @@ func resultsSummaryContent(m Model) string {
 	for _, r := range m.Results {
 		status := strings.ToUpper(r.Status)
 		protocol := strings.ToUpper(r.Protocol)
-		service := detectService(r.Port)
-		category := serviceCategory(service)
-		level := riskLevel(r.Port, status, r.ResponseTime)
-		explanation := riskExplanation(r.Port, status, r.ResponseTime)
+		service := scan.DetectService(r.Port)
+		product := scan.DetectServiceFromBanner(r.Banner)
+		category := scan.ServiceCategory(service)
+		level := scan.RiskLevel(r.Port, status, r.ResponseTime)
+		explanation := scan.RiskExplanation(r.Port, status, r.ResponseTime)
 
 		var statusColored string
 
@@ -207,11 +209,12 @@ func resultsSummaryContent(m Model) string {
 			Bold(true).
 			Render(level)
 
-		fmt.Fprintf(&table, "%s %s %s %s %s %s %s\n",
+		fmt.Fprintf(&table, "%s %s %s %s %s %s %s %s\n",
 			pad(fmt.Sprintf("%d", r.Port), 6),
 			pad(protocol, 8),
 			pad(statusColored, 10),
 			pad(service, 12),
+			pad(product, 15),
 			pad(category, 12),
 			pad(riskColored, 8),
 			pad(explanation, 30),
