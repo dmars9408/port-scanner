@@ -21,6 +21,13 @@ type PortScanResult struct {
 	Service      string
 }
 
+type HostResult struct {
+	IP        string
+	SSHPort   int
+	SSHBanner string
+	HasSSH    bool
+}
+
 // funcion para leer un solo puerto
 func ScanPort(host string, port int, timeout time.Duration) PortScanResult {
 	start := time.Now()

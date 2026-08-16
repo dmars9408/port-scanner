@@ -37,4 +37,15 @@ type Model struct {
 
 	Viewport  viewport.Model
 	StartTime time.Time
+
+	SSHClient   *scan.SSHClient
+	SSHSystem   scan.RemoteSystem
+	SSHCommands []string
+	SSHOutput   string
+	SSHError    string
+	SSHActive   bool
+	SSHUser     string
+	SSHPassword string
+
+	SelectedHost scan.HostResult
 }

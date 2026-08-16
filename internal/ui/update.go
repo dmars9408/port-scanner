@@ -11,8 +11,19 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"portscanner/internal/scan" // <-- ajusta el import si tu módulo tiene otro nombre
+	"portscanner/internal/scan"
 )
+
+type SSHConnectMsg struct {
+	Client *scan.SSHClient
+	System scan.RemoteSystem
+	Err    string
+}
+
+type SSHRunMsg struct {
+	Output string
+	Err    string
+}
 
 func InitialModel() Model {
 	host := textinput.New()
@@ -101,6 +112,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			}
 
+		case "i":
+			if m.SelectedHost.HasSSH { // depende de tu tabla
+				return m, startSSHSessionCmd(
+					m.SelectedHost.IP,
+					m.SelectedHost.SSHPort,
+					m.SSHUser,
+					m.SSHPassword,
+					m.SelectedHost.SSHBanner,
+				)
+			}
+
 		}
 	case tea.MouseMsg: //no esta funcionando
 		if m.Screen == ScreenResults {
@@ -131,6 +153,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Actualizar barra
 		cmd := m.Progress.SetPercent(percent)
 
+		if result.Status == "open" && strings.Contains(strings.ToLower(result.Service), "ssh") {
+			m.SelectedHost = scan.HostResult{
+				IP:        m.Host,
+				SSHPort:   result.Port,
+				SSHBanner: result.Banner,
+				HasSSH:    true,
+			}
+		}
+
 		// Cuando ya tengas todos los resultados, cambias de pantalla
 		if len(m.Results) == len(m.Ports) {
 			sort.Slice(m.Results, func(i, j int) bool {
@@ -150,6 +181,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.CurrentPort = msg.Port
 		return m, nil
 
+	case SSHConnectMsg:
+		if msg.Err != "" {
+			m.SSHError = msg.Err
+			return m, nil
+		}
+
+		m.SSHClient = msg.Client
+		m.SSHSystem = msg.System
+		m.SSHCommands = scan.CommandsForSystem(msg.System)
+		m.SSHActive = true
+		m.SSHError = ""
+		m.SSHOutput = ""
+
+		return m, nil
+
+	case SSHRunMsg:
+		if msg.Err != "" {
+			m.SSHError = msg.Err
+		} else {
+			m.SSHOutput = msg.Output
+			m.SSHError = ""
+		}
+		return m, nil
+
 	}
 
 	var cmd tea.Cmd
@@ -157,6 +212,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.PortsInput, _ = m.PortsInput.Update(msg)
 
 	return m, cmd
+
 }
 
 func validateForm(m Model) (tea.Model, tea.Cmd) {
@@ -181,4 +237,31 @@ func validateForm(m Model) (tea.Model, tea.Cmd) {
 	m.Screen = ScreenScanning
 
 	return m, scan.ScanPortsAsync(host, ports)
+}
+
+func startSSHSessionCmd(host string, port int, user, pass, banner string) tea.Cmd {
+	return func() tea.Msg {
+		client, err := scan.ConnectSSH(host, port, user, pass, 3*time.Second)
+		if err != nil {
+			return SSHConnectMsg{Err: err.Error()}
+		}
+
+		// DETECCIÓN DEL SISTEMA REMOTO
+		system := client.DetectRemoteSystem(banner)
+
+		return SSHConnectMsg{
+			Client: client,
+			System: system,
+		}
+	}
+}
+
+func runSSHCommandCmd(client *scan.SSHClient, cmd string) tea.Cmd {
+	return func() tea.Msg {
+		out, err := client.Run(cmd)
+		if err != nil {
+			return SSHRunMsg{Err: err.Error()}
+		}
+		return SSHRunMsg{Output: out}
+	}
 }

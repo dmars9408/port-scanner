@@ -25,11 +25,23 @@ func (m Model) View() string {
 func formView(m Model) string {
 	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5555"))
 
+	// 1. Definimos el estilo para hacer el banner visualmente más grande y robusto
+	titleStyle := lipgloss.NewStyle().
+		Bold(true).                                  // Hace el texto más grueso
+		Foreground(lipgloss.Color("#01FF70")).       // Color verde ciberseguridad (puedes cambiarlo)
+		Border(lipgloss.RoundedBorder()).            // Le pone un borde redondeado elegante
+		BorderForeground(lipgloss.Color("#85144b")). // Color del borde
+		Padding(0, 2)                                // Le da aire a los lados (2 espacios) para ensanchar la caja
+
 	return lipgloss.JoinVertical(lipgloss.Left,
-		"PortScanner Go v1.0",
+		titleStyle.Render("PortScanner Go v1.0"), // 2. Renderizamos el título con el nuevo estilo
 		"",
 		"Host:",
 		m.HostInput.View(),
+		"",
+		"",
+		"Press Tab to select ports",
+		"",
 		"",
 		"Ports:",
 		m.PortsInput.View(),
@@ -144,7 +156,7 @@ func resultsSummaryContent(m Model) string {
 	fmt.Fprintf(&table,
 		"%s\n",
 		HeaderStyle.Render(fmt.Sprintf(
-			"%-6s %-8s %-10s %-12s %-15s %-12s %-8s %-40s",
+			"%-6s %-8s %-10s %-12s %-15s %-12s %-8s %-45s",
 			"PORT", "PROTO", "STATUS", "SERVICE", "PRODUCT", "CATEGORY", "RISK", "INFO",
 		)),
 	)
@@ -217,7 +229,7 @@ func resultsSummaryContent(m Model) string {
 			pad(product, 15),
 			pad(category, 12),
 			pad(riskColored, 8),
-			pad(explanation, 30),
+			pad(explanation, 45),
 		)
 
 	}
