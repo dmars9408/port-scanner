@@ -194,6 +194,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.SSHError = ""
 		m.SSHOutput = ""
 
+		if msg.System == scan.SystemUnknown {
+			m.SSHOutput = "Remote system not recognized.\n Assisted commands unavailable — manual mode enabled."
+		}
+
 		return m, nil
 
 	case SSHRunMsg:
