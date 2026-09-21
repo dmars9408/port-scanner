@@ -31,6 +31,13 @@ type SSHClient struct {
 	Port   int
 }
 
+type SecurityCommand struct {
+	Label       string
+	Template    string
+	NeedsInput  bool
+	InputPrompt string
+}
+
 func ConnectSSH(host string, port int, user, password string, timeout time.Duration) (*SSHClient, error) {
 	config := &ssh.ClientConfig{
 		User:            user,
@@ -165,82 +172,295 @@ func (s *SSHClient) DetectRemoteSystem(banner string) RemoteSystem {
 	return sys
 }
 
-func CommandsForSystem(sys RemoteSystem) []string {
+func CommandsForSystem(sys RemoteSystem) map[int]SecurityCommand {
 	switch sys {
 
+	// linux
 	case SystemLinux:
-		return []string{
-			"uname -a",
-			"hostnamectl",
-			"df -h",
-			"free -m",
-			"uptime",
-			"ps aux",
-			"ss -tulnp",
+		return map[int]SecurityCommand{
+			// --- Diagnóstico equivalente ---
+			1:  {Label: "System info", Template: "uname -a"},
+			2:  {Label: "Hostname info", Template: "hostnamectl"},
+			3:  {Label: "Disk usage", Template: "df -h"},
+			4:  {Label: "Memory usage", Template: "free -m"},
+			5:  {Label: "Process list", Template: "ps aux"},
+			6:  {Label: "Listening ports", Template: "ss -tulnp"},
+			7:  {Label: "Network interfaces", Template: "ip addr show"},
+			8:  {Label: "Routing table", Template: "ip route show"},
+			9:  {Label: "Firewall rules (iptables)", Template: "iptables -L -n -v"},
+			10: {Label: "System logs", Template: "journalctl -xe"},
+			11: {Label: "Auth failures", Template: "grep -i 'fail' /var/log/auth.log"},
+			12: {Label: "Last logins", Template: "last -a"},
+			13: {Label: "Cron jobs", Template: "crontab -l"},
+
+			// --- Gestión de servicios ---
+			20: {
+				Label:       "Stop service",
+				Template:    "sudo systemctl stop %s",
+				NeedsInput:  true,
+				InputPrompt: "Nombre del servicio:",
+			},
+
+			// --- Gestión de puertos ---
+			30: {
+				Label:       "Block port (iptables)",
+				Template:    "sudo iptables -A INPUT -p tcp --dport %s -j DROP",
+				NeedsInput:  true,
+				InputPrompt: "Puerto a bloquear:",
+			},
+
+			// --- Gestión de interfaces ---
+			40: {
+				Label:       "Shutdown interface",
+				Template:    "sudo ip link set %s down",
+				NeedsInput:  true,
+				InputPrompt: "Nombre de la interfaz:",
+			},
+
+			// --- Gestión de VLANs ---
+			50: {
+				Label:       "Create VLAN",
+				Template:    "sudo ip link add link eth0 name eth0.%s type vlan id %s",
+				NeedsInput:  true,
+				InputPrompt: "ID de VLAN:",
+			},
+
+			// --- Gestión de procesos ---
+			60: {
+				Label:       "Kill process",
+				Template:    "kill %s",
+				NeedsInput:  true,
+				InputPrompt: "PID:",
+			},
 		}
 
+	//bsd
 	case SystemBSD:
-		return []string{
-			"uname -a",
-			"df -h",
-			"top -b",
-			"sockstat -4",
+		return map[int]SecurityCommand{
+			1: {Label: "System info", Template: "uname -a"},
+			2: {Label: "Disk usage", Template: "df -h"},
+			3: {Label: "Process monitor", Template: "top -b"},
+			4: {Label: "Socket info", Template: "sockstat -4"},
+			5: {Label: "PF rules", Template: "pfctl -sr"},
+			6: {Label: "PF stats", Template: "pfctl -si"},
+
+			20: {
+				Label:       "Kill process",
+				Template:    "kill %s",
+				NeedsInput:  true,
+				InputPrompt: "PID:",
+			},
+
+			30: {
+				Label:       "Block port (PF)",
+				Template:    "echo 'block in proto tcp from any to any port %s' >> /etc/pf.conf ; pfctl -f /etc/pf.conf",
+				NeedsInput:  true,
+				InputPrompt: "Puerto:",
+			},
+
+			40: {
+				Label:       "Shutdown interface",
+				Template:    "ifconfig %s down",
+				NeedsInput:  true,
+				InputPrompt: "Interfaz:",
+			},
 		}
 
+	//windows
 	case SystemWindows:
-		return []string{
-			"systeminfo",
-			"tasklist",
-			"netstat -ano",
+		return map[int]SecurityCommand{
+			1: {Label: "System info", Template: "systeminfo"},
+			2: {Label: "Process list", Template: "tasklist"},
+			3: {Label: "Network ports", Template: "netstat -ano"},
+			4: {Label: "Adapters", Template: "Get-NetAdapter"},
+			5: {Label: "Firewall rules", Template: "Get-NetFirewallRule"},
+
+			20: {
+				Label:       "Stop service",
+				Template:    "Stop-Service -Name %s",
+				NeedsInput:  true,
+				InputPrompt: "Servicio:",
+			},
+
+			30: {
+				Label:       "Block port",
+				Template:    "New-NetFirewallRule -DisplayName 'Block %s' -Direction Inbound -LocalPort %s -Protocol TCP -Action Block",
+				NeedsInput:  true,
+				InputPrompt: "Puerto:",
+			},
+
+			40: {
+				Label:       "Disable interface",
+				Template:    "Disable-NetAdapter -Name %s -Confirm:$false",
+				NeedsInput:  true,
+				InputPrompt: "Interfaz:",
+			},
+
+			50: {
+				Label:       "Create VLAN (Hyper-V)",
+				Template:    "Add-VMNetworkAdapter -VMName 'VM1' -SwitchName 'vSwitch' ; Set-VMNetworkAdapterVlan -VMName 'VM1' -Access -VlanId %s",
+				NeedsInput:  true,
+				InputPrompt: "ID de VLAN:",
+			},
 		}
 
+	// cisco ios/nx-os
 	case SystemCisco:
-		return []string{
-			"show version",
-			"show running-config",
-			"show ip interface brief",
-			"show processes cpu",
+		return map[int]SecurityCommand{
+			1: {Label: "Version info", Template: "show version"},
+			2: {Label: "Running config", Template: "show running-config"},
+			3: {Label: "Interfaces brief", Template: "show ip interface brief"},
+			4: {Label: "VLANs", Template: "show vlan"},
+			5: {Label: "ACLs", Template: "show access-lists"},
+
+			20: {
+				Label:       "Shutdown interface",
+				Template:    "configure terminal ; interface %s ; shutdown",
+				NeedsInput:  true,
+				InputPrompt: "Interfaz (ej: GigabitEthernet0/1):",
+			},
+
+			30: {
+				Label:       "Block port (ACL)",
+				Template:    "configure terminal ; ip access-list extended BLOCK ; deny tcp any any eq %s ; exit",
+				NeedsInput:  true,
+				InputPrompt: "Puerto:",
+			},
+
+			40: {
+				Label:       "Assign VLAN",
+				Template:    "configure terminal ; interface %s ; switchport access vlan %s",
+				NeedsInput:  true,
+				InputPrompt: "VLAN ID:",
+			},
 		}
 
+	//huawei vrp
 	case SystemHuawei:
-		return []string{
-			"display version",
-			"display current-configuration",
-			"display interface brief",
+		return map[int]SecurityCommand{
+			1: {Label: "Version info", Template: "display version"},
+			2: {Label: "Current config", Template: "display current-configuration"},
+			3: {Label: "Interfaces brief", Template: "display interface brief"},
+			4: {Label: "VLANs", Template: "display vlan"},
+			5: {Label: "ACLs", Template: "display acl all"},
+
+			20: {
+				Label:       "Shutdown interface",
+				Template:    "system-view ; interface %s ; shutdown",
+				NeedsInput:  true,
+				InputPrompt: "Interfaz:",
+			},
+
+			30: {
+				Label:       "Block port (ACL)",
+				Template:    "system-view ; acl 3000 ; rule 5 deny tcp destination-port %s",
+				NeedsInput:  true,
+				InputPrompt: "Puerto:",
+			},
+
+			40: {
+				Label:       "Assign VLAN",
+				Template:    "system-view ; interface %s ; port link-type access ; port default vlan %s",
+				NeedsInput:  true,
+				InputPrompt: "VLAN ID:",
+			},
 		}
 
+	//juniper junos
 	case SystemJuniper:
-		return []string{
-			"show version",
-			"show configuration",
-			"show interfaces terse",
+		return map[int]SecurityCommand{
+			1: {Label: "Version info", Template: "show version"},
+			2: {Label: "Configuration", Template: "show configuration"},
+			3: {Label: "Interfaces terse", Template: "show interfaces terse"},
+			4: {Label: "VLANs", Template: "show vlans"},
+			5: {Label: "Firewall filters", Template: "show firewall"},
+
+			20: {
+				Label:       "Shutdown interface",
+				Template:    "configure ; set interfaces %s disable ; commit",
+				NeedsInput:  true,
+				InputPrompt: "Interfaz:",
+			},
+
+			30: {
+				Label:       "Block port (filter)",
+				Template:    "configure ; set firewall family inet filter BLOCK term 1 from destination-port %s ; set firewall family inet filter BLOCK term 1 then discard ; commit",
+				NeedsInput:  true,
+				InputPrompt: "Puerto:",
+			},
+
+			40: {
+				Label:       "Assign VLAN",
+				Template:    "configure ; set interfaces %s unit 0 family ethernet-switching vlan members %s ; commit",
+				NeedsInput:  true,
+				InputPrompt: "VLAN ID:",
+			},
 		}
 
+	//fortinet fortios
 	case SystemFortinet:
-		return []string{
-			"get system status",
-			"get system performance top",
-			"diagnose sys top",
+		return map[int]SecurityCommand{
+			1: {Label: "System status", Template: "get system status"},
+			2: {Label: "Performance top", Template: "get system performance top"},
+			3: {Label: "Firewall policies", Template: "show firewall policy"},
+			4: {Label: "Interfaces", Template: "show system interface"},
+			5: {Label: "VLANs", Template: "show system vlan"},
+
+			20: {
+				Label:       "Disable interface",
+				Template:    "config system interface ; edit %s ; set status down ; end",
+				NeedsInput:  true,
+				InputPrompt: "Interfaz:",
+			},
+
+			30: {
+				Label:       "Block port",
+				Template:    "config firewall service custom ; edit Block_%s ; set tcp-portrange %s ; next ; end",
+				NeedsInput:  true,
+				InputPrompt: "Puerto:",
+			},
+
+			40: {
+				Label:       "Assign VLAN",
+				Template:    "config system interface ; edit %s ; set vlanid %s ; end",
+				NeedsInput:  true,
+				InputPrompt: "VLAN ID:",
+			},
 		}
 
-	case SystemPaloAlto:
-		return []string{
-			"show system info",
-			"show running resource-monitor",
-			"show session all",
-		}
-
+	// mikrotik routeros
 	case SystemMikroTik:
-		return []string{
-			"/system resource print",
-			"/interface print",
-			"/ip address print",
+		return map[int]SecurityCommand{
+			1: {Label: "System resources", Template: "/system resource print"},
+			2: {Label: "Interfaces", Template: "/interface print"},
+			3: {Label: "IP addresses", Template: "/ip address print"},
+			4: {Label: "Firewall rules", Template: "/ip firewall filter print"},
+			5: {Label: "VLANs", Template: "/interface vlan print"},
+
+			20: {
+				Label:       "Disable interface",
+				Template:    "/interface disable %s",
+				NeedsInput:  true,
+				InputPrompt: "Interfaz:",
+			},
+
+			30: {
+				Label:       "Block port",
+				Template:    "/ip firewall filter add chain=input protocol=tcp dst-port=%s action=drop",
+				NeedsInput:  true,
+				InputPrompt: "Puerto:",
+			},
+
+			40: {
+				Label:       "Create VLAN",
+				Template:    "/interface vlan add vlan-id=%s interface=ether1 name=vlan%s",
+				NeedsInput:  true,
+				InputPrompt: "VLAN ID:",
+			},
 		}
 
-	default: // SystemUnknown
-		return []string{
-			"help",
-			"?",
-		}
+	// unknown system
+	default:
+		return map[int]SecurityCommand{}
 	}
 }

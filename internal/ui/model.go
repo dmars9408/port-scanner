@@ -15,6 +15,7 @@ const (
 	ScreenForm ScreenType = iota
 	ScreenScanning
 	ScreenResults
+	ScreenSSH
 )
 
 type Model struct {
@@ -38,14 +39,18 @@ type Model struct {
 	Viewport  viewport.Model
 	StartTime time.Time
 
-	SSHClient   *scan.SSHClient
-	SSHSystem   scan.RemoteSystem
-	SSHCommands []string
-	SSHOutput   string
-	SSHError    string
-	SSHActive   bool
-	SSHUser     string
-	SSHPassword string
+	SSHClient         *scan.SSHClient
+	SSHSystem         scan.RemoteSystem
+	SSHOutput         string
+	SSHError          string
+	SSHActive         bool
+	SSHUser           string
+	SSHPassword       string
+	SSHManualMode     bool
+	SSHInput          textinput.Model
+	SSHAwaitingParam  bool
+	SSHCommands       map[int]scan.SecurityCommand
+	SSHPendingCommand *scan.SecurityCommand
 
 	SelectedHost scan.HostResult
 }

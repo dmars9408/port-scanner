@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"portscanner/internal/scan"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -17,6 +18,8 @@ func (m Model) View() string {
 		return scanningView(m)
 	case ScreenResults:
 		return resultsSummaryView(m)
+	case ScreenSSH:
+		return sshView(m)
 	}
 	return ""
 }
@@ -135,6 +138,10 @@ func resultsSummaryContent(m Model) string {
 	right.WriteString("  S - Save log\n")
 	right.WriteString("  Q - Quit\n")
 
+	if m.SelectedHost.HasSSH {
+		right.WriteString("  I - Start SSH session\n")
+	}
+
 	if m.LogMessages != "" {
 		right.WriteString("\n")
 		right.WriteString(LogStyle.Render(m.LogMessages))
@@ -237,4 +244,58 @@ func resultsSummaryContent(m Model) string {
 	bottomBox := BoxStyle.Render(table.String())
 
 	return lipgloss.JoinVertical(lipgloss.Top, topRow, bottomBox)
+}
+
+func sshView(m Model) string {
+	var b strings.Builder
+
+	title := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#00AFFF"))
+	b.WriteString(title.Render("SSH Session"))
+	b.WriteString("\n\n")
+
+	if m.SSHError != "" {
+		errStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5555"))
+		b.WriteString(errStyle.Render(m.SSHError))
+		b.WriteString("\n\n")
+	}
+
+	if m.SSHOutput != "" {
+		outStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#AAAAAA"))
+		b.WriteString(outStyle.Render(m.SSHOutput))
+		b.WriteString("\n\n")
+	}
+
+	if m.SSHAwaitingParam {
+		b.WriteString(m.SSHOutput)
+		b.WriteString("\n")
+		b.WriteString("> ")
+		b.WriteString(m.SSHInput.View())
+		return b.String()
+	}
+
+	if m.SSHManualMode {
+		b.WriteString("Manual mode enabled.\n")
+		b.WriteString("> ")
+		b.WriteString(m.SSHInput.View())
+		return b.String()
+	}
+
+	b.WriteString("Available commands:\n\n")
+
+	keys := make([]int, 0, len(m.SSHCommands))
+	for k := range m.SSHCommands {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+
+	for _, k := range keys {
+		cmd := m.SSHCommands[k]
+		b.WriteString(fmt.Sprintf("%d) %s\n", k, cmd.Label))
+	}
+
+	b.WriteString("\n0) Manual mode\n\n")
+	b.WriteString("> ")
+	b.WriteString(m.SSHInput.View())
+
+	return b.String()
 }

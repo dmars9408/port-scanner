@@ -323,10 +323,16 @@ func DetectServiceFromBanner(banner string) string {
 		return "HTTP (PHP)"
 
 	// SSH
+	case strings.Contains(b, "ssh-"):
+		return "SSH"
 	case strings.Contains(b, "openssh"):
 		return "SSH (OpenSSH)"
 	case strings.Contains(b, "dropbear"):
 		return "SSH (Dropbear)"
+	case strings.Contains(b, "bitvise"):
+		return "SSH (Bitvise)"
+	case strings.Contains(b, "libssh"):
+		return "SSH (libssh)"
 
 	// FTP
 	case strings.Contains(b, "vsftpd"):
