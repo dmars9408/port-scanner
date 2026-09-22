@@ -62,39 +62,169 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 
 	case tea.KeyMsg:
-		// Si estamos en la vista SSH, manejamos las teclas 'b' y 'q' para volver o cerrar sesión
 		if m.Screen == ScreenSSH {
 			switch msg.String() {
 
 			case "b", "B":
-				// Volver a la vista de resultados
 				m.Screen = ScreenResults
-				m.SSHManualMode = false
+				m.SSHActive = false
 				m.SSHAwaitingParam = false
+				m.SSHManualMode = false
 				m.SSHPendingCommand = nil
 				m.SSHError = ""
+				m.SSHOutput = ""
+				m.SSHInput.SetValue("")
+				m.SSHInput.EchoMode = textinput.EchoNormal
+				m.SSHInput.Placeholder = "Enter SSH command or number"
+				m.SSHInput.Blur()
+				m.Viewport.SetContent(resultsSummaryContent(m))
 				return m, nil
 
 			case "q", "Q":
-				// Cerrar sesión SSH y volver al summary
-				if m.SSHClient == nil {
-					m.SSHError = "SSH client not initialized."
-					return m, nil
+				if m.SSHClient != nil {
+					m.SSHClient.Close()
 				}
 
-				m.SSHClient.Close()
 				m.SSHClient = nil
 				m.SSHCommands = nil
 				m.SSHActive = false
 				m.SSHAwaitingParam = false
+				m.SSHManualMode = false
+				m.SSHPendingCommand = nil
 				m.SSHUser = ""
 				m.SSHPassword = ""
-				m.Screen = ScreenResults
-				return m, nil
+				m.SSHError = ""
+				m.SSHOutput = ""
+				m.SSHInput.SetValue("")
+				m.SSHInput.EchoMode = textinput.EchoNormal
+				m.SSHInput.Placeholder = "Enter SSH command or number"
+				m.SSHInput.Blur()
 
+				m.Screen = ScreenResults
+				m.Viewport.SetContent(resultsSummaryContent(m))
+				return m, nil
 			}
+
+			// LOGIN SSH
+			if m.SSHAwaitingParam && !m.SSHActive {
+				m.SSHInput, _ = m.SSHInput.Update(msg)
+
+				if msg.String() == "enter" {
+
+					if m.SSHUser == "" {
+						m.SSHUser = m.SSHInput.Value()
+						m.SSHInput.SetValue("")
+						m.SSHInput.Placeholder = "SSH Password"
+						m.SSHInput.EchoMode = textinput.EchoPassword
+						m.Viewport.SetContent("SSH Login\n\nEnter password:")
+						m.SSHInput.Focus()
+						return m, nil
+					}
+
+					if m.SSHPassword == "" {
+						m.SSHPassword = m.SSHInput.Value()
+						m.SSHAwaitingParam = false
+						m.SSHInput.SetValue("")
+						m.SSHInput.EchoMode = textinput.EchoNormal
+						m.Viewport.SetContent("Connecting to SSH server...")
+						return m, startSSHSessionCmd(
+							m.SelectedHost.IP,
+							m.SelectedHost.SSHPort,
+							m.SSHUser,
+							m.SSHPassword,
+							m.SelectedHost.SSHBanner,
+						)
+					}
+				}
+
+				return m, nil
+			}
+
+			// COMANDO CON PARÁMETRO
+			if m.SSHActive && m.SSHAwaitingParam {
+				m.SSHInput, _ = m.SSHInput.Update(msg)
+
+				if msg.String() == "enter" {
+					param := m.SSHInput.Value()
+					m.SSHInput.SetValue("")
+
+					finalCmd := fmt.Sprintf(m.SSHPendingCommand.Template, param)
+
+					m.SSHAwaitingParam = false
+					m.SSHInput.Blur()
+					m.SSHPendingCommand = nil
+
+					return m, runSSHCommandCmd(m.SSHClient, finalCmd)
+				}
+
+				return m, nil
+			}
+
+			// MODO MANUAL
+			if m.SSHActive && m.SSHManualMode {
+				m.SSHInput, _ = m.SSHInput.Update(msg)
+
+				if msg.String() == "enter" {
+					cmd := m.SSHInput.Value()
+					m.SSHInput.SetValue("")
+					return m, runSSHCommandCmd(m.SSHClient, cmd)
+				}
+
+				return m, nil
+			}
+
+			// MODO AUTOMÁTICO (selector numérico)
+			if m.SSHActive && !m.SSHManualMode {
+				m.SSHInput, _ = m.SSHInput.Update(msg)
+
+				if msg.String() == "enter" {
+					raw := strings.TrimSpace(m.SSHInput.Value())
+					m.SSHInput.SetValue("")
+
+					num, err := strconv.Atoi(raw)
+					if err != nil {
+						m.SSHOutput = fmt.Sprintf("Invalid command: %s\n", raw)
+						return m, nil
+					}
+
+					// ACTIVAR MODO MANUAL
+					if num == 0 {
+						m.SSHManualMode = true
+						m.SSHAwaitingParam = false
+						m.SSHPendingCommand = nil
+						m.SSHOutput = "Manual mode enabled.\n"
+						m.SSHInput.Placeholder = "Enter SSH command"
+						m.SSHInput.EchoMode = textinput.EchoNormal
+						m.SSHInput.Focus()
+						return m, nil
+					}
+
+					cmd, exists := m.SSHCommands[num]
+					if !exists {
+						m.SSHOutput = fmt.Sprintf("Command %d not available.\n", num)
+						return m, nil
+					}
+
+					if cmd.NeedsInput {
+						m.SSHAwaitingParam = true
+						m.SSHPendingCommand = &cmd
+						m.SSHOutput = cmd.InputPrompt + "\n"
+						m.SSHInput.Placeholder = cmd.InputPrompt
+						m.SSHInput.EchoMode = textinput.EchoNormal
+						m.SSHInput.Focus()
+						return m, nil
+					}
+
+					return m, runSSHCommandCmd(m.SSHClient, cmd.Template)
+				}
+
+				return m, nil
+			}
+
+			return m, nil
 		}
 
+		// NAVEGACIÓN GENERAL
 		switch msg.String() {
 
 		case "up":
@@ -157,116 +287,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case "i", "I":
-			if m.SelectedHost.HasSSH {
+			if m.Screen == ScreenResults && m.SelectedHost.HasSSH {
 				m.Screen = ScreenSSH
 				m.SSHAwaitingParam = true
+				m.SSHActive = false
+				m.SSHManualMode = false
+				m.SSHPendingCommand = nil
+				m.SSHError = ""
+				m.SSHOutput = ""
+				m.SSHUser = ""
+				m.SSHPassword = ""
+				m.SSHInput.SetValue("")
 				m.SSHInput.Placeholder = "SSH Username"
+				m.SSHInput.EchoMode = textinput.EchoNormal
 				m.SSHInput.Focus()
+				m.Viewport.SetContent("SSH Login\n\nEnter username:")
 				return m, nil
 			}
-
-		}
-
-		// SSH LOGIN FLOW (username + password)
-		if m.Screen == ScreenSSH && m.SSHAwaitingParam && !m.SSHActive {
-			m.SSHInput, _ = m.SSHInput.Update(msg)
-
-			if msg.String() == "enter" {
-
-				// 1) Usuario
-				if m.SSHUser == "" {
-					m.SSHUser = m.SSHInput.Value()
-					m.SSHInput.SetValue("")
-					m.SSHInput.Placeholder = "SSH Password"
-					m.SSHInput.EchoMode = textinput.EchoPassword // 🔒 oculta caracteres
-					m.Viewport.SetContent("SSH Login\n\nEnter password:")
-					return m, nil
-				}
-
-				// 2) Contraseña
-				if m.SSHPassword == "" {
-					m.SSHPassword = m.SSHInput.Value()
-					m.SSHAwaitingParam = false
-					m.SSHInput.EchoMode = textinput.EchoNormal // 🔓 restaura modo texto
-					m.Viewport.SetContent("Connecting to SSH server...")
-					return m, startSSHSessionCmd(
-						m.SelectedHost.IP,
-						m.SelectedHost.SSHPort,
-						m.SSHUser,
-						m.SSHPassword,
-						m.SelectedHost.SSHBanner,
-					)
-				}
-
-			}
-
-			return m, nil
-		}
-
-		// SSH esperando parámetro
-		if m.SSHActive && m.SSHAwaitingParam {
-			m.SSHInput, _ = m.SSHInput.Update(msg)
-
-			if msg.String() == "enter" {
-				param := m.SSHInput.Value()
-				m.SSHInput.SetValue("")
-
-				finalCmd := fmt.Sprintf(m.SSHPendingCommand.Template, param)
-
-				m.SSHAwaitingParam = false
-				m.SSHInput.Blur()
-				m.SSHPendingCommand = nil
-
-				return m, runSSHCommandCmd(m.SSHClient, finalCmd)
-			}
-
-			return m, nil
-		}
-
-		// SSH modo manual
-		if m.SSHActive && m.SSHManualMode {
-			m.SSHInput, _ = m.SSHInput.Update(msg)
-
-			if msg.String() == "enter" {
-				cmd := m.SSHInput.Value()
-				m.SSHInput.SetValue("")
-				return m, runSSHCommandCmd(m.SSHClient, cmd)
-			}
-
-			return m, nil
-		}
-
-		// SSH modo automático con selector numérico
-		if m.SSHActive && !m.SSHManualMode {
-			m.SSHInput, _ = m.SSHInput.Update(msg)
-
-			if msg.String() == "enter" {
-				raw := strings.TrimSpace(m.SSHInput.Value())
-				m.SSHInput.SetValue("")
-
-				num, err := strconv.Atoi(raw)
-				if err != nil {
-					m.SSHOutput = fmt.Sprintf("Invalid command: %s\n", raw)
-					return m, nil
-				}
-
-				cmd, exists := m.SSHCommands[num]
-				if !exists {
-					m.SSHOutput = fmt.Sprintf("Command %d not available.\n", num)
-					return m, nil
-				}
-
-				if cmd.NeedsInput {
-					m.SSHAwaitingParam = true
-					m.SSHPendingCommand = &cmd
-					m.SSHOutput = cmd.InputPrompt + "\n"
-					return m, nil
-				}
-
-				return m, runSSHCommandCmd(m.SSHClient, cmd.Template)
-			}
-
-			return m, nil
 		}
 
 	case tea.MouseMsg:
@@ -319,6 +356,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case SSHConnectMsg:
 		if msg.Err != "" {
 			m.SSHError = msg.Err
+			m.SSHActive = false
+			m.SSHAwaitingParam = false
 			return m, nil
 		}
 
@@ -327,21 +366,31 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.SSHCommands = scan.CommandsForSystem(msg.System)
 		m.SSHActive = true
 		m.SSHAwaitingParam = false
-		m.SSHInput.Blur()
+		m.SSHManualMode = false
+		m.SSHInput.Focus()
+		m.SSHInput.SetValue("")
+		m.SSHInput.EchoMode = textinput.EchoNormal
+		m.SSHInput.Placeholder = "Enter SSH command or number"
 		m.SSHError = ""
 		m.SSHOutput = ""
 
-		// Vista SSH inicial
 		var content strings.Builder
 		content.WriteString("SSH Session Established\n\n")
 
-		// Mostrar comandos disponibles
 		content.WriteString("Available commands:\n")
-		for num, cmd := range m.SSHCommands {
-			content.WriteString(fmt.Sprintf("  %d) %s\n", num, cmd.InputPrompt))
+
+		keys := make([]int, 0, len(m.SSHCommands))
+		for k := range m.SSHCommands {
+			keys = append(keys, k)
+		}
+		sort.Ints(keys)
+
+		for _, num := range keys {
+			cmd := m.SSHCommands[num]
+			fmt.Fprintf(&content, "  %d) %s\n", num, cmd.Label)
 		}
 
-		// Mostrar instrucciones de navegación
+		content.WriteString("\n0) Manual mode\n")
 		content.WriteString("\n[B] Back to results   |   [Q] Quit SSH\n")
 
 		m.Viewport.SetContent(content.String())
@@ -414,6 +463,10 @@ func startSSHSessionCmd(host string, port int, user, pass, banner string) tea.Cm
 
 func runSSHCommandCmd(client *scan.SSHClient, cmd string) tea.Cmd {
 	return func() tea.Msg {
+		if client == nil {
+			return SSHRunMsg{Err: "SSH client not initialized."}
+		}
+
 		out, err := client.Run(cmd)
 		if err != nil {
 			return SSHRunMsg{Err: err.Error()}

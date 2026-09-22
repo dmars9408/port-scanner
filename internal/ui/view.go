@@ -3,7 +3,6 @@ package ui
 import (
 	"fmt"
 	"portscanner/internal/scan"
-	"sort"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -28,23 +27,20 @@ func (m Model) View() string {
 func formView(m Model) string {
 	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5555"))
 
-	// 1. Definimos el estilo para hacer el banner visualmente más grande y robusto
 	titleStyle := lipgloss.NewStyle().
-		Bold(true).                                  // Hace el texto más grueso
-		Foreground(lipgloss.Color("#01FF70")).       // Color verde ciberseguridad (puedes cambiarlo)
-		Border(lipgloss.RoundedBorder()).            // Le pone un borde redondeado elegante
-		BorderForeground(lipgloss.Color("#85144b")). // Color del borde
-		Padding(0, 2)                                // Le da aire a los lados (2 espacios) para ensanchar la caja
+		Bold(true).
+		Foreground(lipgloss.Color("#01FF70")).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#85144b")).
+		Padding(0, 2)
 
 	return lipgloss.JoinVertical(lipgloss.Left,
-		titleStyle.Render("PortScanner Go v1.0"), // 2. Renderizamos el título con el nuevo estilo
+		titleStyle.Render("PortScanner Go v1.0"),
 		"",
 		"Host:",
 		m.HostInput.View(),
 		"",
-		"",
 		"Press Tab to select ports",
-		"",
 		"",
 		"Ports:",
 		m.PortsInput.View(),
@@ -68,14 +64,12 @@ func scanningView(m Model) string {
 	)
 }
 
-// --- Vista de resultados ---
+// --- Vista de resultados (tabla simple) ---
 func resultsView(m Model) string {
 	var b strings.Builder
 
-	// Header
 	fmt.Fprintf(&b, "%-7s %-8s %-8s %-6s\n", "PORT", "PROTOCOL", "STATUS", "TIME")
 
-	// Rows
 	for _, r := range m.Results {
 		fmt.Fprintf(&b, "%-7d %-8s %-8s %-6s\n",
 			r.Port,
@@ -84,7 +78,6 @@ func resultsView(m Model) string {
 			r.ResponseTime.String())
 	}
 
-	//Totals
 	var openCount, closedCount int
 	for _, r := range m.Results {
 		if r.Status == "open" {
@@ -96,14 +89,13 @@ func resultsView(m Model) string {
 
 	fmt.Fprintf(&b, "\nTOTAL: %d, OPEN: %d, CLOSED: %d\n", len(m.Results), openCount, closedCount)
 
-	//total scan time
 	if len(m.Results) > 0 {
 		startTime := m.Results[0].Timestamp
 		endTime := m.Results[len(m.Results)-1].Timestamp
 		total := endTime.Sub(startTime)
-
 		fmt.Fprintf(&b, "Total scan time: %s\n", total.String())
 	}
+
 	return b.String()
 }
 
@@ -114,7 +106,6 @@ func resultsSummaryView(m Model) string {
 // --- Estilos base tabla ---
 func resultsSummaryContent(m Model) string {
 
-	// --- Panel izquierdo: Scan Summary ---
 	var left strings.Builder
 
 	left.WriteString(TitleStyle.Render("Scan Summary"))
@@ -129,7 +120,6 @@ func resultsSummaryContent(m Model) string {
 
 	leftBox := BoxStyle.Render(left.String())
 
-	// --- Panel derecho: Actions ---
 	var right strings.Builder
 
 	right.WriteString(TitleStyle.Render("Actions"))
@@ -150,11 +140,9 @@ func resultsSummaryContent(m Model) string {
 
 	rightBox := BoxStyle.Render(right.String())
 
-	// --- Parte superior: Summary (izq) + Actions (der) ---
 	gap := lipgloss.NewStyle().Width(25).Render("")
 	topRow := lipgloss.JoinHorizontal(lipgloss.Top, leftBox, gap, rightBox)
 
-	// --- Tabla inferior ---
 	var table strings.Builder
 
 	table.WriteString(TitleStyle.Render("SCAN RESULTS"))
@@ -168,7 +156,6 @@ func resultsSummaryContent(m Model) string {
 		)),
 	)
 
-	// Filas
 	for _, r := range m.Results {
 		status := strings.ToUpper(r.Status)
 		protocol := strings.ToUpper(r.Protocol)
@@ -182,51 +169,22 @@ func resultsSummaryContent(m Model) string {
 
 		switch status {
 		case "OPEN":
-			statusColored = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#00FF00")).
-				Bold(true).
-				Render(status)
-
+			statusColored = lipgloss.NewStyle().Foreground(lipgloss.Color("#00FF00")).Bold(true).Render(status)
 		case "CLOSED":
-			statusColored = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#FF0000")).
-				Bold(true).
-				Render(status)
-
+			statusColored = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF0000")).Bold(true).Render(status)
 		case "TIMEOUT":
-			statusColored = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#FFFF00")).
-				Bold(true).
-				Render(status)
-
+			statusColored = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFF00")).Bold(true).Render(status)
 		case "DNS_ERROR":
-			statusColored = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#00AFFF")).
-				Bold(true).
-				Render(status)
-
+			statusColored = lipgloss.NewStyle().Foreground(lipgloss.Color("#00AFFF")).Bold(true).Render(status)
 		case "REFUSED":
-			statusColored = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#FF8800")).
-				Bold(true).
-				Render(status)
-
+			statusColored = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF8800")).Bold(true).Render(status)
 		case "UNREACHABLE":
-			statusColored = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#AAAAAA")).
-				Bold(true).
-				Render(status)
-
+			statusColored = lipgloss.NewStyle().Foreground(lipgloss.Color("#AAAAAA")).Bold(true).Render(status)
 		default:
-			statusColored = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#FFFFFF")).
-				Render(status)
+			statusColored = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")).Render(status)
 		}
 
-		riskColored := lipgloss.NewStyle().
-			Foreground(riskColor(level)).
-			Bold(true).
-			Render(level)
+		riskColored := lipgloss.NewStyle().Foreground(riskColor(level)).Bold(true).Render(level)
 
 		fmt.Fprintf(&table, "%s %s %s %s %s %s %s %s\n",
 			pad(fmt.Sprintf("%d", r.Port), 6),
@@ -238,7 +196,6 @@ func resultsSummaryContent(m Model) string {
 			pad(riskColored, 8),
 			pad(explanation, 45),
 		)
-
 	}
 
 	bottomBox := BoxStyle.Render(table.String())
@@ -246,6 +203,7 @@ func resultsSummaryContent(m Model) string {
 	return lipgloss.JoinVertical(lipgloss.Top, topRow, bottomBox)
 }
 
+// --- Vista SSH corregida ---
 func sshView(m Model) string {
 	var b strings.Builder
 
@@ -253,47 +211,25 @@ func sshView(m Model) string {
 	b.WriteString(title.Render("SSH Session"))
 	b.WriteString("\n\n")
 
+	// Mostrar contenido del viewport (comandos + output)
+	b.WriteString(m.Viewport.View())
+	b.WriteString("\n\n")
+
+	// Mostrar errores
 	if m.SSHError != "" {
 		errStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5555"))
 		b.WriteString(errStyle.Render(m.SSHError))
 		b.WriteString("\n\n")
 	}
 
+	// Mostrar output
 	if m.SSHOutput != "" {
 		outStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#AAAAAA"))
 		b.WriteString(outStyle.Render(m.SSHOutput))
 		b.WriteString("\n\n")
 	}
 
-	if m.SSHAwaitingParam {
-		b.WriteString(m.SSHOutput)
-		b.WriteString("\n")
-		b.WriteString("> ")
-		b.WriteString(m.SSHInput.View())
-		return b.String()
-	}
-
-	if m.SSHManualMode {
-		b.WriteString("Manual mode enabled.\n")
-		b.WriteString("> ")
-		b.WriteString(m.SSHInput.View())
-		return b.String()
-	}
-
-	b.WriteString("Available commands:\n\n")
-
-	keys := make([]int, 0, len(m.SSHCommands))
-	for k := range m.SSHCommands {
-		keys = append(keys, k)
-	}
-	sort.Ints(keys)
-
-	for _, k := range keys {
-		cmd := m.SSHCommands[k]
-		b.WriteString(fmt.Sprintf("%d) %s\n", k, cmd.Label))
-	}
-
-	b.WriteString("\n0) Manual mode\n\n")
+	// Input SIEMPRE visible
 	b.WriteString("> ")
 	b.WriteString(m.SSHInput.View())
 
