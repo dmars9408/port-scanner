@@ -53,12 +53,16 @@ func formView(m Model) string {
 
 // --- Vista de escaneo ---
 func scanningView(m Model) string {
+	var percent float64
+	if len(m.Ports) > 0 {
+		percent = float64(m.ScannedCount) / float64(len(m.Ports))
+	}
 	return lipgloss.JoinVertical(lipgloss.Left,
 		"Scanning "+m.Host+"...",
 		"",
 		fmt.Sprintf("Current port: %d", m.CurrentPort),
 		"",
-		m.Progress.View(),
+		m.Progress.ViewAs(percent),
 		"",
 		fmt.Sprintf("%d/%d ports scanned", m.ScannedCount, len(m.Ports)),
 	)
