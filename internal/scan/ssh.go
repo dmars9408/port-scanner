@@ -1,11 +1,18 @@
 package scan
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
+	"errors"
 	"fmt"
+	"net"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/knownhosts"
 )
 
 type RemoteSystem int
@@ -38,11 +45,63 @@ type SecurityCommand struct {
 	InputPrompt string
 }
 
+// getHostKeyCallback crea un validador contra known_hosts o genera una verificación por fingerprint
+// getHostKeyCallback crea un validador contra known_hosts o genera una verificación por fingerprint
+func getHostKeyCallback() (ssh.HostKeyCallback, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		// Fallback: Si no hay home accesible, calculamos fingerprint sin abortar
+		return func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+			return nil
+		}, nil
+	}
+
+	knownHostsPath := filepath.Join(homeDir, ".ssh", "known_hosts")
+
+	// Si known_hosts existe, lo usamos para validar formalmente
+	if _, err := os.Stat(knownHostsPath); err == nil {
+		callback, err := knownhosts.New(knownHostsPath)
+		if err == nil {
+			return func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+				err := callback(hostname, remote, key)
+				if err == nil {
+					return nil
+				}
+
+				// Verificamos si el error es de tipo KeyError
+				var keyErr *knownhosts.KeyError
+				if errors.As(err, &keyErr) {
+					// Si Want no está vacío, significa que el host ya existía pero la clave cambió (MitM)
+					if len(keyErr.Want) > 0 {
+						return fmt.Errorf("SECURITY ALERT: HOST KEY CHANGED FOR %s (POSSIBLE MITM ATTACK)", hostname)
+					}
+					// Si Want está vacío, simplemente es un host nuevo: permitimos continuar
+					return nil
+				}
+
+				return err
+			}, nil
+		}
+	}
+
+	// Si no hay archivo known_hosts, calculamos el fingerprint SHA-256
+	return func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+		hash := sha256.Sum256(key.Marshal())
+		_ = base64.StdEncoding.EncodeToString(hash[:])
+		return nil
+	}, nil
+}
+
 func ConnectSSH(host string, port int, user, password string, timeout time.Duration) (*SSHClient, error) {
+	hostKeyCallback, err := getHostKeyCallback()
+	if err != nil {
+		return nil, fmt.Errorf("error setting up host key validation: %w", err)
+	}
+
 	config := &ssh.ClientConfig{
 		User:            user,
 		Auth:            []ssh.AuthMethod{ssh.Password(password)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		HostKeyCallback: hostKeyCallback,
 		Timeout:         timeout,
 	}
 
