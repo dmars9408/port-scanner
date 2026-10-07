@@ -356,6 +356,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.Results[i].Port < m.Results[j].Port
 		})
 
+		sort.Slice(m.Results, func(i, j int) bool {
+			return m.Results[i].Port < m.Results[j].Port
+		})
 		m.Screen = ScreenResults
 		m.Viewport = viewport.New(100, 30)
 		m.Viewport.YPosition = 0

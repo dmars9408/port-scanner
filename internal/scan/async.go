@@ -1,6 +1,7 @@
 package scan
 
 import (
+	"math/rand"
 	"sync"
 	"time"
 
@@ -26,8 +27,18 @@ func StartScanSession(host string, ports []int, concurrency int, timeout time.Du
 	go func() {
 		defer close(msgChan)
 
-		jobs := make(chan int, len(ports))
-		for _, p := range ports {
+		// 1. Creamos una copia local y aleatorizamos el orden de los puertos
+		shuffled := make([]int, len(ports))
+		copy(shuffled, ports)
+
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+		r.Shuffle(len(shuffled), func(i, j int) {
+			shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+		})
+
+		// 2. Llenamos el canal con los puertos desordenados
+		jobs := make(chan int, len(shuffled))
+		for _, p := range shuffled {
 			jobs <- p
 		}
 		close(jobs)
