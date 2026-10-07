@@ -38,3 +38,6 @@ go.work.sum
 cmd/scanner/portscanner-linux
 cmd/scanner/portscanner-macos-*
 cmd/scanner/portscanner-windows*
+
+# Distribution folder
+dist/
