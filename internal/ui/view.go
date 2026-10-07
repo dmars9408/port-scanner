@@ -35,7 +35,7 @@ func formView(m Model) string {
 		Padding(0, 2)
 
 	return lipgloss.JoinVertical(lipgloss.Left,
-		titleStyle.Render("PortScanner Go v1.0"),
+		titleStyle.Render("PortScanner Go v1.1"),
 		"",
 		"Host:",
 		m.HostInput.View(),
