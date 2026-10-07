@@ -1,83 +1,108 @@
-# port-scanner
-Proyecto en Go para escaner de puertos de red
+# PortScanner Go (v1.1)
 
+Herramienta interactiva de auditoría de red, análisis de puertos y respuesta a incidentes basada en terminal (TUI). Diseñada en **Go** puro, es ligera, multiplataforma y sin dependencias externas del sistema.
 
-# PortScanner Go v1.0
+Incluye un motor concurrente con control de congestión, *active probing* para reconocimiento de banners HTTP/SSH, evaluación heurística de riesgos y un cliente SSH interactivo adaptativo para gestión remota segura.
 
-PortScanner Go es una herramienta de escaneo de puertos escrita en Go, con interfaz TUI basada en BubbleTea y soporte para ejecución de comandos SSH en sistemas remotos. Es completamente portable, funciona en cualquier Windows 10/11 y no requiere instalación ni dependencias externas.
+---
 
-## Características
+## Características Principales
 
-- Escaneo rápido de puertos TCP
-- Detección de servicios y banners
-- Interfaz TUI con navegación por teclado
-- SSH integrado con autenticación por usuario y contraseña
-- Comandos automáticos según el sistema remoto (Windows / Linux)
-- Modo manual para ejecutar cualquier comando
-- Tabla de resultados con colores
-- Guardado de logs del escaneo
-- Binario portable para Windows (.exe)
+* **Motor Concurrente Optimizado (Worker Pool):** Escanea rangos masivos (incluso 1-65535) sin colapsar descriptores de archivo ni disparar caídas por congestión SYN.
+* **Banner Grabbing Activo:** Inspección de respuestas pasivas y sondas activas HTTP (`HEAD`) para extraer versiones de servidores (Apache, Nginx, OpenSSH, etc.).
+* **Evaluación Heurística de Riesgos:** Clasificación contextual del riesgo (CRITICAL, HIGH, MEDIUM, LOW) según el servicio expuesto y posibles anomalías de latencia (detección de *tarpits* o *honeypots*).
+* **Filtro de Puertos en Caliente:** Alterna dinámicamente la visualización entre el universo completo de puertos o únicamente los servicios abiertos.
+* **Sesión SSH Segura y Adaptativa:**
+  * Reconocimiento de huellas criptográficas y validación estricta contra `~/.ssh/known_hosts` para mitigar ataques Man-in-the-Middle (MitM).
+  * Menús de remediación contextualizados para **Linux, Windows, Cisco IOS, JunOS, FortiOS y MikroTik RouterOS**.
+  * Modo manual con shell interactivo para comandos ad-hoc.
+* **Exportación de Auditoría:** Registro de resultados formateados con timestamps ISO 8601 a disco.
 
-## Instalación
+---
 
-Descarga el archivo `portscanner.exe` y ejecútalo:
+## Instalación y Binarios
 
-- Con doble click (se abrirá una ventana de consola)
-- O desde PowerShell/CMD usando:
+No requiere instalación de runtimes (como Python o Node.js) ni utilidades de red adicionales en el sistema.
 
-.\portscanner.exe
+### Descarga directa
+Descarga el binario correspondiente a tu sistema operativo desde la sección de **Releases** de este repositorio:
 
+| Sistema Operativo | Arquitectura | Archivo ejecutable |
+| :--- | :--- | :--- |
+| **Windows** | x86_64 / amd64 | `portscanner-windows-amd64.exe` |
+| **Linux** | x86_64 / amd64 | `portscanner-linux-amd64` |
+| **macOS** | Apple Silicon (M1/M2/M3/M4) | `portscanner-darwin-arm64` |
+| **macOS** | Intel | `portscanner-darwin-amd64` |
 
-No requiere instalación, variables de entorno ni configuración adicional.
+### Notas de ejecución en Linux y macOS
 
-## Uso básico
+1. **Asignar permisos de ejecución:**
+   Tanto en Linux como en macOS, el sistema requiere permisos explícitos tras descargar el archivo:
+   ```bash
+   chmod +x portscanner-linux-amd64   # En Linux
+   chmod +x portscanner-darwin-arm64  # En macOS
+   ```
 
-1. Introduce el host o IP a escanear.
-2. Introduce los puertos (ejemplo: `22,80,443` o `1-1024`).
-3. Presiona **Enter** para iniciar el escaneo.
+2. **Permitir ejecución en macOS (Gatekeeper):**
+   Al no contar con una firma digital comercial de Apple, macOS puede bloquear el binario con el mensaje *"no se puede abrir porque el desarrollador no se puede verificar"*. Para desbloquearlo, ejecuta en la terminal:
+   ```bash
+   xattr -d com.apple.quarantine portscanner-darwin-arm64
+   ```
 
-En la pantalla de resultados:
+---
 
-- **R** → nuevo escaneo
-- **S** → guardar log del escaneo
-- **Q** → salir del programa
-- **I** → iniciar sesión SSH (si el host lo permite)
+## Guía de Uso
 
-## SSH
+1. **Host:** Introduce una dirección IP o nombre de dominio (ej. `192.168.1.1` o `scanme.nmap.org`).
+2. **Puertos:** Define la lista o rango a auditar:
+   * Puertos específicos: `22,80,443,8080`
+   * Rangos: `1-1024`
+   * Combinado: `21-25,80,443,3306,8000-8080`
+3. Presiona **Enter** para ejecutar el escaneo.
 
-Una vez conectado por SSH:
+### Atajos en Pantalla de Resultados
 
-- Selecciona comandos automáticos por número.
-- Usa modo manual para escribir cualquier comando.
-- **B** → volver a la pantalla de resultados.
-- **Q** → cerrar sesión SSH y volver a resultados.
+| Tecla | Acción |
+| :---: | :--- |
+| `O` | **Alternar filtro:** Conmuta entre ver todos los puertos o solo los abiertos. |
+| `S` | **Guardar log:** Exporta los resultados actuales a un archivo de texto con timestamp. |
+| `I` | **Sesión SSH:** Inicia la autenticación remota si se detectó el servicio expuesto. |
+| `R` | **Reiniciar:** Regresa al formulario para un nuevo escaneo. |
+| `↑` / `↓` | Desplazamiento de línea en la tabla de resultados. |
+| `PgUp` / `PgDn` | Desplazamiento rápido de 10 líneas. |
+| `Q` / `Esc` | Cerrar la aplicación. |
 
-## Guardar logs
+---
 
-En la pantalla de resultados, presiona:
+## Sesión SSH y Remediación
 
-**S**
+Si el objetivo tiene el puerto 22 abierto, puedes presionar `I` para iniciar sesión interactiva:
 
-El log se guarda como:
+1. Ingresa usuario y contraseña cuando se solicite en pantalla.
+2. El cliente validará la clave del host contra tu `known_hosts` local para prevenir suplantaciones (MitM).
+3. El motor detectará el sistema operativo remoto y ofrecerá acciones directas:
+   * **Linux/BSD:** Listado de sockets, reglas iptables/pf, detención de servicios.
+   * **Cisco/Juniper/MikroTik:** Inspección de configuración, aislamiento de puertos y reglas de ACL.
+   * **Opción `0`:** Cambia a **Modo Manual** para ejecutar comandos de consola personalizados.
+4. Presiona `B` para regresar a los resultados del escaneo o `Q` para desconectar la sesión.
 
-scan-log-YYYYMMDD-HHMMSS.txt
+---
 
+## Compilación desde Código Fuente
 
-Incluye:
-- Host escaneado
-- Puertos abiertos/cerrados
-- Servicios detectados
-- Resumen final
+Requiere **Go 1.22** o superior.
 
-## Compilación (solo para desarrolladores)
+```bash
+# Clonar el repositorio
+git clone [https://github.com/tu-usuario/port-scanner.git](https://github.com/tu-usuario/port-scanner.git)
+cd port-scanner
 
-Para generar el binario optimizado:
+# Compilar binario nativo
+go build -ldflags="-s -w" -o portscanner ./cmd/scanner
+```
 
-go build -ldflags="-s -w" -o portscanner.exe
-
-
-Esto produce un ejecutable portable para Windows.
+---
 
 ## Licencia
 
-MIT (opcional)
+Distribuido bajo la Licencia MIT. Consulta el archivo `LICENSE` para más información.
