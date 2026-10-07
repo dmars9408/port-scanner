@@ -281,6 +281,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
+		case "o", "O":
+			if m.Screen == ScreenResults {
+				m.FilterOnlyOpen = !m.FilterOnlyOpen
+				m.Viewport.SetContent(resultsSummaryContent(m))
+				return m, nil
+			}
+
 		case "q":
 			if m.Screen == ScreenResults {
 				return m, tea.Quit
@@ -354,6 +361,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Viewport.YPosition = 0
 		m.Viewport.SetContent(resultsSummaryContent(m))
 		return m, nil
+
 	case SSHConnectMsg:
 		if msg.Err != "" {
 			m.SSHError = msg.Err

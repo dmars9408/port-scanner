@@ -28,7 +28,8 @@ type Model struct {
 	Host  string
 	Ports []int
 
-	Results []scan.PortScanResult
+	Results        []scan.PortScanResult
+	FilterOnlyOpen bool
 
 	Progress     progress.Model
 	ScannedCount int

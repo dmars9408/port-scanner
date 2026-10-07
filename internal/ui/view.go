@@ -126,6 +126,11 @@ func resultsSummaryContent(m Model) string {
 	right.WriteString("\n")
 	right.WriteString("  R - Run another scan\n")
 	right.WriteString("  S - Save log\n")
+	if m.FilterOnlyOpen {
+		right.WriteString("  O - Show ALL ports\n")
+	} else {
+		right.WriteString("  O - Show ONLY OPEN ports\n")
+	}
 	right.WriteString("  Q - Quit\n")
 
 	if m.SelectedHost.HasSSH {
@@ -157,10 +162,16 @@ func resultsSummaryContent(m Model) string {
 	)
 
 	for _, r := range m.Results {
+		if m.FilterOnlyOpen && !strings.EqualFold(r.Status, "open") {
+			continue
+		}
 		status := strings.ToUpper(r.Status)
 		protocol := strings.ToUpper(r.Protocol)
 		service := scan.DetectService(r.Port)
 		product := scan.DetectServiceFromBanner(r.Banner)
+		if product == "Unknown" {
+			product = "-"
+		}
 		category := scan.ServiceCategory(service)
 		level := scan.RiskLevel(r.Port, status, r.ResponseTime)
 		explanation := scan.RiskExplanation(r.Port, status, r.ResponseTime)

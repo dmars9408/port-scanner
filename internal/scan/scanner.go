@@ -29,6 +29,7 @@ type HostResult struct {
 }
 
 // funcion para leer un solo puerto
+// funcion para leer un solo puerto
 func ScanPort(host string, port int, timeout time.Duration) PortScanResult {
 	start := time.Now()
 	addrs := net.JoinHostPort(host, fmt.Sprintf("%d", port))
@@ -42,20 +43,33 @@ func ScanPort(host string, port int, timeout time.Duration) PortScanResult {
 	conn, err := (&net.Dialer{Timeout: timeout}).Dial("tcp", addrs)
 	reply.ResponseTime = time.Since(start)
 
-	//Cierra la conexión siempre que exista, incluso si hay error.
 	if conn != nil {
-		defer conn.Close() //es una mejora de seguridad, evita fuga de conexiones
+		defer conn.Close()
 	}
 
 	if err == nil {
 		reply.Status = "open"
-		buffer := make([]byte, 256)
-		conn.SetReadDeadline(time.Now().Add(300 * time.Millisecond))
+		buffer := make([]byte, 512)
+
+		// 1. Si es un puerto típicamente Web, enviamos una petición rápida para provocar la respuesta
+		if port == 80 || port == 8080 || port == 8000 || port == 8888 {
+			conn.SetWriteDeadline(time.Now().Add(400 * time.Millisecond))
+			_, _ = conn.Write([]byte("HEAD / HTTP/1.0\r\nHost: " + host + "\r\nUser-Agent: PortScanner/1.1\r\n\r\n"))
+		}
+
+		// 2. Leemos la respuesta (con 600ms de margen para absorber latencias)
+		conn.SetReadDeadline(time.Now().Add(600 * time.Millisecond))
 		n, _ := conn.Read(buffer)
 		banner := strings.TrimSpace(string(buffer[:n]))
 		reply.Banner = banner
+
 		if banner != "" {
-			reply.Service = DetectServiceFromBanner(banner)
+			detected := DetectServiceFromBanner(banner)
+			if detected != "Unknown" {
+				reply.Service = detected
+			} else {
+				reply.Service = DetectService(port)
+			}
 		} else {
 			reply.Service = DetectService(port)
 		}
