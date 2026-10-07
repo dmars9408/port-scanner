@@ -30,3 +30,11 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Logs del port scanner
+*.log
+
+# Binarios específicos del proyecto
+cmd/scanner/portscanner-linux
+cmd/scanner/portscanner-macos-*
+cmd/scanner/portscanner-windows*

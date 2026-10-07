@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 type ScreenType int
@@ -27,7 +28,8 @@ type Model struct {
 	Host  string
 	Ports []int
 
-	Results []scan.PortScanResult
+	Results        []scan.PortScanResult
+	FilterOnlyOpen bool
 
 	Progress     progress.Model
 	ScannedCount int
@@ -38,6 +40,8 @@ type Model struct {
 
 	Viewport  viewport.Model
 	StartTime time.Time
+
+	ScanChan chan tea.Msg
 
 	SSHClient         *scan.SSHClient
 	SSHSystem         scan.RemoteSystem

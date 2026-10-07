@@ -1,18 +1,11 @@
 package scan
 
 import (
+	"sync"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
-
-/*
-async.go permite escanear los puertos de manera asíncrona, o sea, sin bloquear
-la interfaz BubbleTea.
-BubbleTea es un framework de terminal basado en el patrón de diseño
-Model-View-Controller, que funciona como un sistema de comandos y mensajes.
-Este archhivo async.go crea esos comandos.
-*/
 
 type BubbleResultMsg struct {
 	Result PortScanResult
@@ -22,45 +15,58 @@ type ScanProgressMessage struct {
 	Port int
 }
 
-func ScanPortsAsync(host string, ports []int) tea.Cmd {
-	var cmds []tea.Cmd
+// ScanDoneMsg avisa a Bubble Tea que todos los puertos terminaron de escanearse.
+type ScanDoneMsg struct{}
 
-	for _, port := range ports {
-		p := port
-		cmds = append(cmds,
-			func() tea.Msg {
-				//Primero avisamos qué puerto se está escaneando
-				return ScanProgressMessage{Port: p}
-			},
-			func() tea.Msg {
-				//Luego enviamos el resultado real
-				result := ScanPort(host, p, 500*time.Millisecond)
-				return BubbleResultMsg{Result: result}
-			},
-		)
-	}
+// StartScanSession lanza el worker pool en segundo plano y devuelve un tea.Cmd
+// que escucha los resultados conforme se producen sin saturar el sistema.
+func StartScanSession(host string, ports []int, concurrency int, timeout time.Duration) (tea.Cmd, chan tea.Msg) {
+	msgChan := make(chan tea.Msg, 500) // Buffer para absorber ráfagas hacia la UI
 
-	return tea.Batch(cmds...)
+	go func() {
+		defer close(msgChan)
+
+		jobs := make(chan int, len(ports))
+		for _, p := range ports {
+			jobs <- p
+		}
+		close(jobs)
+
+		var wg sync.WaitGroup
+		// Limitamos la concurrencia al número indicado (por ej. 100 o 200)
+		for i := 0; i < concurrency; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for port := range jobs {
+					// 1. Notificar progreso a la UI
+					msgChan <- ScanProgressMessage{Port: port}
+
+					// 2. Realizar escaneo real
+					res := ScanPort(host, port, timeout)
+
+					// 3. Entregar resultado a la UI
+					msgChan <- BubbleResultMsg{Result: res}
+				}
+			}()
+		}
+
+		wg.Wait()
+		// Enviamos señal de finalización
+		msgChan <- ScanDoneMsg{}
+	}()
+
+	return WaitForScanMsg(msgChan), msgChan
 }
 
-// Esta función crea un slice de comandos, uno por cada puerto
-func funcsForPorts(host string, ports []int) []tea.Cmd {
-	cmds := make([]tea.Cmd, 0, len(ports)*2) // dos comandos por puerto
-
-	for _, port := range ports {
-		p := port
-
-		//Primero: mensaje de progreso
-		cmds = append(cmds, func() tea.Msg {
-			return ScanProgressMessage{Port: p}
-		})
-
-		//Segundo: resultado del escaneo
-		cmds = append(cmds, func() tea.Msg {
-			result := ScanPort(host, p, 500*time.Millisecond)
-			return BubbleResultMsg{Result: result}
-		})
+// WaitForScanMsg lee el siguiente mensaje disponible en el canal de escaneo.
+// Este es el patrón estándar de Bubble Tea para escuchar canales asíncronos continuos.
+func WaitForScanMsg(msgChan chan tea.Msg) tea.Cmd {
+	return func() tea.Msg {
+		msg, ok := <-msgChan
+		if !ok {
+			return nil
+		}
+		return msg
 	}
-
-	return cmds
 }

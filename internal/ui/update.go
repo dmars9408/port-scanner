@@ -281,6 +281,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
+		case "o", "O":
+			if m.Screen == ScreenResults {
+				m.FilterOnlyOpen = !m.FilterOnlyOpen
+				m.Viewport.SetContent(resultsSummaryContent(m))
+				return m, nil
+			}
+
 		case "q":
 			if m.Screen == ScreenResults {
 				return m, tea.Quit
@@ -319,13 +326,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 
+	case scan.ScanProgressMessage:
+		m.CurrentPort = msg.Port
+		return m, scan.WaitForScanMsg(m.ScanChan)
+
 	case scan.BubbleResultMsg:
 		result := msg.Result
 		m.Results = append(m.Results, result)
 		m.ScannedCount++
 
 		percent := float64(m.ScannedCount) / float64(len(m.Ports))
-		cmd := m.Progress.SetPercent(percent)
+		progressCmd := m.Progress.SetPercent(percent)
 
 		if result.Status == "open" && strings.Contains(strings.ToLower(result.Service), "ssh") {
 			m.SelectedHost = scan.HostResult{
@@ -336,21 +347,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		if len(m.Results) == len(m.Ports) {
-			sort.Slice(m.Results, func(i, j int) bool {
-				return m.Results[i].Port < m.Results[j].Port
-			})
+		// Importante: No verificamos len(m.Results) aquí;
+		// esperamos pacientemente la señal ScanDoneMsg
+		return m, tea.Batch(progressCmd, scan.WaitForScanMsg(m.ScanChan))
 
-			m.Screen = ScreenResults
-			m.Viewport = viewport.New(100, 30)
-			m.Viewport.YPosition = 0
-			m.Viewport.SetContent(resultsSummaryContent(m))
-		}
+	case scan.ScanDoneMsg:
+		sort.Slice(m.Results, func(i, j int) bool {
+			return m.Results[i].Port < m.Results[j].Port
+		})
 
-		return m, cmd
-
-	case scan.ScanProgressMessage:
-		m.CurrentPort = msg.Port
+		m.Screen = ScreenResults
+		m.Viewport = viewport.New(100, 30)
+		m.Viewport.YPosition = 0
+		m.Viewport.SetContent(resultsSummaryContent(m))
 		return m, nil
 
 	case SSHConnectMsg:
@@ -378,15 +387,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		content.WriteString("SSH Session Established\n\n")
 
 		content.WriteString("Available commands:\n")
-
-		keys := make([]int, 0, len(m.SSHCommands))
-		for k := range m.SSHCommands {
-			keys = append(keys, k)
-		}
-		sort.Ints(keys)
-
-		for _, num := range keys {
-			cmd := m.SSHCommands[num]
+		for num, cmd := range m.SSHCommands {
 			fmt.Fprintf(&content, "  %d) %s\n", num, cmd.Label)
 		}
 
@@ -441,8 +442,14 @@ func validateForm(m Model) (tea.Model, tea.Cmd) {
 	m.Ports = ports
 	m.StartTime = time.Now()
 	m.Screen = ScreenScanning
+	m.Results = nil
+	m.ScannedCount = 0
 
-	return m, scan.ScanPortsAsync(host, ports)
+	// Iniciamos el worker pool con 150 trabajadores simultáneos y timeout de 500ms
+	cmd, ch := scan.StartScanSession(host, ports, 150, 500*time.Millisecond)
+	m.ScanChan = ch
+
+	return m, cmd
 }
 
 func startSSHSessionCmd(host string, port int, user, pass, banner string) tea.Cmd {
